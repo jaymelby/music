@@ -46,11 +46,11 @@ far above the naive baseline on enjoyment.
 
 | style | CE range | PQ range |
 |---|---|---|
-| corporate | 7.54–7.62 | 8.12–8.23 |
-| lofi | 7.34–7.64 | 7.89–8.13 |
-| electronic | 7.20–7.40 | 7.98–8.17 |
-| cinematic | 7.16–7.25 | 7.94–8.03 |
-| ambient | 6.99–7.21 | 7.82–8.01 |
+| corporate | 7.54–7.59 | 8.12–8.22 |
+| lofi | 7.36–7.57 | 7.85–8.11 |
+| electronic | 7.19–7.38 | 7.98–8.16 |
+| cinematic | 7.18–7.23 | 7.92–8.04 |
+| ambient | 6.97–7.21 | 7.87–8.01 |
 
 Across seeds, keys, lengths and cue layouts, quality stays consistent: no seed produced an
 outlier. During tuning, the scores showed specific problems, which were then fixed:
