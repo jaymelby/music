@@ -29,11 +29,18 @@ def test_every_style_composes_in_key_and_in_range(style):
 def test_melody_strong_beats_are_chord_tones(style):
     score = compose(parse_spec({**CUE, "style": style, "seed": 5}))
     melodic = {ly.name for ly in score.style.layers if ly.role == "melody"}
-    strong = [n for n in score.notes if n.layer in melodic and abs(n.beat * 2 - round(n.beat * 2)) < 1e-6
-              and round(n.beat) % 2 == 0 and abs(n.beat - round(n.beat)) < 1e-6]
-    for n in strong:
-        chord = next(c for b, nb, c in score.chords if b <= n.beat < b + nb)
-        assert n.pitch % 12 in chord.pcs
+    bars = score.grid.bars()
+    checked = 0
+    for n in score.notes:
+        if n.layer not in melodic:
+            continue
+        bar = next(b for b in bars if b.beat <= n.beat < b.beat + b.beats)
+        pos = n.beat - bar.beat  # beats 1 and 3 of the bar are the strong beats
+        if abs(pos - round(pos)) < 1e-6 and round(pos) % 2 == 0:
+            chord = next(c for b, nb, c in score.chords if b <= n.beat < b + nb)
+            assert n.pitch % 12 in chord.pcs
+            checked += 1
+    assert checked > 0
 
 
 def test_same_seed_same_music_different_seed_different_music():

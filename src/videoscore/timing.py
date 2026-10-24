@@ -18,8 +18,9 @@ import numpy as np
 
 BEATS_PER_BAR = 4
 MAX_DEVIATION = 0.08  # tempo changes larger than this between segments get a warning
-HALF_BAR_PENALTY = 8.0  # cost of ending a segment on a 2-beat bar (= a 4% tempo change)
-LAST_HALF_BAR_PENALTY = 30.0  # the final bar rings out, so it should be a full bar
+# cost of a segment that ends on short bars, by leftover beats (1 leftover is played as 3 + 2)
+SHORT_BAR_PENALTY = {0: 0.0, 2: 8.0, 3: 12.0, 1: 16.0}
+LAST_SHORT_BAR_PENALTY = 30.0  # with a "resolve" ending the final bar rings out, so it should be full
 
 
 @dataclass
@@ -55,7 +56,7 @@ class Segment:
 class Bar:
     index: int
     beat: int  # global beat number of the downbeat
-    beats: int  # 4, or 2 for a half bar at the end of a segment
+    beats: int  # 4, or 2-3 for a short bar at the end of a segment
     segment: int
 
 
@@ -98,7 +99,8 @@ class Grid:
         for si, seg in enumerate(self.segments):
             b = 0
             while b < seg.beats:
-                n = min(BEATS_PER_BAR, seg.beats - b)
+                rem = seg.beats - b
+                n = 3 if rem == BEATS_PER_BAR + 1 else min(BEATS_PER_BAR, rem)  # never a 1-beat bar
                 bars.append(Bar(index=len(bars), beat=seg.beat_offset + b, beats=n, segment=si))
                 b += n
         return bars
@@ -125,10 +127,17 @@ def _drop_close_cues(cues: list[Cue], end: float, min_len: float) -> tuple[list[
 
 
 def _beat_options(length: float, lo: float, hi: float) -> np.ndarray:
-    """Even beat counts (>= one bar) whose tempo is near the allowed range."""
-    b_lo = max(BEATS_PER_BAR, int(np.floor(length * lo * (1 - MAX_DEVIATION) / 60 / 2)) * 2)
-    b_hi = max(b_lo, int(np.ceil(length * hi * (1 + MAX_DEVIATION) / 60 / 2)) * 2)
-    return np.arange(b_lo, b_hi + 1, 2)
+    """Beat counts (at least one bar) whose tempo is near the allowed range."""
+    b_lo = max(BEATS_PER_BAR, int(np.floor(length * lo * (1 - MAX_DEVIATION) / 60)) - 1)
+    b_hi = max(b_lo + 3, int(np.ceil(length * hi * (1 + MAX_DEVIATION) / 60)) + 1)
+    b = np.arange(b_lo, b_hi + 1)
+    return b[b != BEATS_PER_BAR + 1]  # 5 beats would need two short bars and no full one
+
+
+def _jump_cost(ratio: np.ndarray) -> np.ndarray:
+    """Cost of a tempo change between neighbours; grows steeply past ~4%."""
+    pct = 100 * np.abs(np.log(ratio))
+    return 0.5 * pct**2 + 3.0 * np.maximum(0.0, pct - 4.0) ** 2
 
 
 def fit_grid(
@@ -136,6 +145,7 @@ def fit_grid(
     end: float,
     tempo_range: tuple[float, float],
     preferred: float,
+    full_last_bar: bool = True,
 ) -> Grid:
     """Choose a whole number of beats for every segment so each cue is on a downbeat.
 
@@ -154,11 +164,12 @@ def fit_grid(
 
     def node_cost(k: int, beats: np.ndarray) -> np.ndarray:
         tempo = 60.0 * beats / lengths[k]
-        half = LAST_HALF_BAR_PENALTY if k == len(lengths) - 1 else HALF_BAR_PENALTY
+        rest = beats % BEATS_PER_BAR
+        short = np.select([rest == r for r in SHORT_BAR_PENALTY], list(SHORT_BAR_PENALTY.values()), 0.0)
+        if full_last_bar and k == len(lengths) - 1:
+            short = np.where(rest != 0, LAST_SHORT_BAR_PENALTY, 0.0)
         out_of_range = np.maximum(0, np.log(lo / tempo)) + np.maximum(0, np.log(tempo / hi))
-        return (np.where(beats % 4 != 0, half, 0.0)
-                + 2.0 * (100 * out_of_range) ** 2
-                + 0.02 * (100 * np.log(tempo / preferred)) ** 2)
+        return short + 2.0 * (100 * out_of_range) ** 2 + 0.02 * (100 * np.log(tempo / preferred)) ** 2
 
     options = [_beat_options(L, lo, hi) for L in lengths]
     cost = node_cost(0, options[0])
@@ -168,7 +179,7 @@ def fit_grid(
         cur_t = 60.0 * options[k] / lengths[k]
         # a jump hidden under a scene change is less noticeable than one under a hit
         weight = 0.5 if kinds[k] == "section" else 1.0
-        jump = weight * (100 * np.log(cur_t[:, None] / prev_t[None, :])) ** 2
+        jump = weight * _jump_cost(cur_t[:, None] / prev_t[None, :])
         total = jump + cost[None, :]
         back.append(np.argmin(total, axis=1))
         cost = total[np.arange(len(cur_t)), back[-1]] + node_cost(k, options[k])

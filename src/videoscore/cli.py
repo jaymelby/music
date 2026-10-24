@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
-from .spec import SpecError, load_spec, parse_spec
+from .spec import SpecError, parse_spec
 from .styles import STYLES
 
 EXAMPLE = {
@@ -58,7 +59,8 @@ def _summary(rep: dict) -> str:
     lines = [f"{rep['style']} in {rep['key']}, base {rep['base_bpm']} BPM, {rep['duration']}s, ending: {rep['ending']}"]
     for c in rep["cues"]:
         if c["aligned_time"] is None:
-            lines.append(f"  cue {c['time']:>8.3f}s {c['kind']:<7} NOT SYNCED (too close to another cue)")
+            lines.append(f"  cue {c['time']:>8.3f}s {c['kind']:<7} NOT SYNCED: under a bar from another cue "
+                         f"(nearest downbeat {c['nearest_downbeat']:.3f}s)")
         else:
             lines.append(f"  cue {c['time']:>8.3f}s {c['kind']:<7} -> downbeat of bar {c['bar']} "
                          f"(error {c['error_ms']:.3f} ms) {c['label']}")
@@ -75,6 +77,14 @@ def _summary(rep: dict) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    try:
+        return _main(argv)
+    except BrokenPipeError:  # output piped into `head` etc.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        return 0
+
+
+def _main(argv: list[str] | None) -> int:
     parser = argparse.ArgumentParser(
         prog="videoscore",
         description="Generate background music for a video, with every scene transition on a downbeat.",

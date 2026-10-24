@@ -1,0 +1,16 @@
+{
+  "title": "60s product demo with narration ducking",
+  "duration": 60.0,
+  "style": "corporate",
+  "seed": 3,
+  "scenes": [
+    {"start": 0.0, "label": "logo sting", "energy": "low"},
+    {"start": 3.2, "label": "the problem", "energy": 0.4},
+    {"start": 14.5, "label": "product walkthrough", "energy": 0.65},
+    {"start": 31.0, "label": "key feature", "energy": "high"},
+    {"start": 47.3, "label": "call to action", "energy": 0.5}
+  ],
+  "hits": [38.5],
+  "duck": [[3.6, 13.8], [15.0, 29.5], [48.0, 56.0]],
+  "ending": "resolve"
+}

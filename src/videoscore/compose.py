@@ -165,7 +165,7 @@ class Composer:
         for h in spec.hits:
             if all(abs(h - c.time) > 0.05 for c in cues):
                 cues.append(Cue(h, "hit"))
-        self.grid = fit_grid(cues, spec.duration, tempo_range, preferred)
+        self.grid = fit_grid(cues, spec.duration, tempo_range, preferred, full_last_bar=spec.ending == "resolve")
         self.score = Score(style=st, key=self.key, grid=self.grid, warnings=list(self.grid.warnings))
         self.motifs: dict = {}
         self.prev_voicing: dict[str, tuple[int, ...]] = {}

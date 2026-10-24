@@ -11,7 +11,7 @@ def _check_grid(grid, cues, end):
     starts = [s.start for s in grid.segments[1:]]
     assert starts == pytest.approx([c.time for c in sorted(kept, key=lambda c: c.time)], abs=1e-12)
     for seg in grid.segments:
-        assert seg.beats >= BEATS_PER_BAR and seg.beats % 2 == 0
+        assert seg.beats >= BEATS_PER_BAR and seg.beats != BEATS_PER_BAR + 1
         # the cue lands exactly on the first beat of its segment
         assert grid.time_of(seg.beat_offset) == pytest.approx(seg.start, abs=1e-9)
     assert grid.time_of(grid.total_beats) == pytest.approx(end, abs=1e-9)
@@ -25,6 +25,7 @@ def test_random_cues_land_exactly_on_downbeats(seed):
     cues = [Cue(t, rng.choice(["section", "section", "hit"])) for t in times]
     grid = fit_grid(cues, end, (100, 124), 112)
     _check_grid(grid, cues, end)
+    assert all(b.beats in (2, 3, 4) for b in grid.bars())
     downbeats = {round(grid.time_of(b.beat), 9) for b in grid.bars()}
     for c in cues:
         if c not in grid.dropped:

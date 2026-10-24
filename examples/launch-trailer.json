@@ -1,0 +1,13 @@
+{
+  "title": "45s launch trailer",
+  "duration": 45.0,
+  "style": "cinematic",
+  "seed": 5,
+  "scenes": [
+    {"start": 0.0, "label": "dark open", "energy": 0.25},
+    {"start": 8.0, "label": "tension", "energy": 0.45},
+    {"start": 20.0, "label": "reveal", "energy": "peak"},
+    {"start": 36.0, "label": "logo + date", "energy": 0.55}
+  ],
+  "hits": [28.0]
+}

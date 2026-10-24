@@ -1,0 +1,37 @@
+# Copy to .github/workflows/copilot-setup-steps.yml in the repository where Copilot builds videos.
+# It pre-installs videoscore (and ffmpeg) before the Copilot coding agent starts, outside its firewall.
+name: Copilot Setup Steps
+
+on:
+  workflow_dispatch:
+  push:
+    paths: [.github/workflows/copilot-setup-steps.yml]
+
+jobs:
+  copilot-setup-steps: # the job must have exactly this name
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
+      # Public repository:
+      - name: Install videoscore
+        run: pip install "git+https://github.com/jaymelby/music.git@main"
+
+      # Private repository: replace the step above with these two, and add a fine-grained token
+      # with read access to jaymelby/music as the secret MUSIC_REPO_TOKEN in the "copilot" environment.
+      # - uses: actions/checkout@v5
+      #   with:
+      #     repository: jaymelby/music
+      #     token: ${{ secrets.MUSIC_REPO_TOKEN }}
+      #     path: .videoscore
+      # - run: pip install ./.videoscore && rm -rf .videoscore

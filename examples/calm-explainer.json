@@ -1,0 +1,7 @@
+{
+  "title": "2-minute calm explainer",
+  "duration": 120.0,
+  "style": "ambient",
+  "seed": 8,
+  "transitions": [12.0, 37.5, 70.0, 101.0]
+}

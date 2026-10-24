@@ -32,9 +32,11 @@ def report(score: Score, spec: Spec) -> dict:
         t = grid.time_of(seg.beat_offset)
         cues.append({"time": _r(seg.start), "aligned_time": _r(t), "error_ms": _r((t - seg.start) * 1000, 3),
                      "kind": seg.kind, "label": seg.label, "bar": bar_of_beat.get(seg.beat_offset)})
+    downbeats = [grid.time_of(b.beat) for b in bars]
     for c in grid.dropped:
+        nearest = min(downbeats, key=lambda t: abs(t - c.time))
         cues.append({"time": _r(c.time), "aligned_time": None, "error_ms": None, "kind": c.kind,
-                     "label": c.label, "bar": None})
+                     "label": c.label, "bar": None, "nearest_downbeat": _r(nearest)})
     cues.sort(key=lambda c: c["time"])
 
     sections = []
@@ -64,7 +66,7 @@ def report(score: Score, spec: Spec) -> dict:
         "tempo_map": [{"start": _r(s.start), "end": _r(s.end), "bpm": _r(s.tempo, 3), "beats": s.beats}
                       for s in grid.segments],
         "chords": [{"time": _r(grid.time_of(b)), "chord": c.symbol} for b, _n, c in score.chords],
-        "downbeats": [_r(grid.time_of(b.beat)) for b in bars],
+        "downbeats": [_r(t) for t in downbeats],
         "beats": [_r(t) for t in beats],
         "warnings": spec.warnings + score.warnings,
     }

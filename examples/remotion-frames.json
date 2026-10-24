@@ -1,0 +1,14 @@
+{
+  "title": "Remotion composition, timings in frames at 30 fps",
+  "unit": "frames",
+  "fps": 30,
+  "style": "electronic",
+  "seed": 12,
+  "scenes": [
+    {"duration": 90, "label": "hook", "energy": 0.5},
+    {"duration": 150, "label": "montage 1", "energy": 0.75},
+    {"duration": 150, "label": "montage 2", "energy": "high"},
+    {"duration": 210, "label": "features", "energy": 0.7},
+    {"duration": 120, "label": "end card", "energy": 0.4}
+  ]
+}
