@@ -82,6 +82,7 @@ class Phrase:
     count: int  # phrases in section
     tier: str
     layers: list[Layer]
+    part: str = "A"  # "A" (verse-like) or "B" (chorus-like) progression
 
 
 @dataclass
@@ -143,7 +144,16 @@ class Composer:
             tonic = st.keys[int(self.rng.integers(len(st.keys)))]
             self.key = parse_key(f"{tonic} {mode}")
         family = "minor" if self.key.mode in MINOR_LIKE else "major"
-        bank = st.progressions.get(self.key.mode) or st.progressions.get(family)
+        self.warnings: list[str] = []
+        bank = st.progressions.get(self.key.mode)
+        if bank is None:
+            # Progressions are written for a specific mode; fall back to plain major/minor
+            # rather than reading major-key numerals against, say, a lydian scale.
+            if self.key.mode != family:
+                self.warnings.append(f"The {st.name} style has no {self.key.mode} progressions; "
+                                     f"using {Key(self.key.tonic, family).name} instead.")
+                self.key = Key(self.key.tonic, family)
+            bank = st.progressions.get(family)
         if bank is None:
             from .styles import MINOR_BANK
 
@@ -166,7 +176,7 @@ class Composer:
             if all(abs(h - c.time) > 0.05 for c in cues):
                 cues.append(Cue(h, "hit"))
         self.grid = fit_grid(cues, spec.duration, tempo_range, preferred, full_last_bar=spec.ending == "resolve")
-        self.score = Score(style=st, key=self.key, grid=self.grid, warnings=list(self.grid.warnings))
+        self.score = Score(style=st, key=self.key, grid=self.grid, warnings=self.warnings + self.grid.warnings)
         self.motifs: dict = {}
         self.prev_voicing: dict[str, tuple[int, ...]] = {}
         self.prev_bass: int | None = None
@@ -229,6 +239,10 @@ class Composer:
             ph = [p for p in self.score.phrases if p.section is s]
             peak = max((p.energy for p in ph), default=s.energy)
             s.part = "B" if peak >= 0.6 else "A"
+            for p in ph:
+                # a scene keeps one progression; a long scene with an automatic energy arc
+                # alternates verse/chorus material as its energy rises and falls
+                p.part = ("B" if p.energy >= 0.6 else "A") if s.auto_energy else s.part
 
     # ------------------------------------------------------------------ harmony
     def build_chords(self) -> dict[int, Chord]:
@@ -237,16 +251,16 @@ class Composer:
         by_bar: dict[int, Chord] = {}
         prev_part = None
         full_idx = 0
-        for s in self.score.sections:
-            prog = list(self.prog_pair[0] if s.part == "A" else self.prog_pair[1])
-            bpc = st.bars_per_chord[0 if s.energy < 0.55 else 1]
-            if s.part == prev_part:
+        for ph in self.score.phrases:
+            prog = list(self.prog_pair[0] if ph.part == "A" else self.prog_pair[1])
+            bpc = st.bars_per_chord[0 if ph.energy < 0.55 else 1]
+            if ph.part == prev_part:
                 full_idx = -(-full_idx // bpc) * bpc  # same part again: carry on from the next chord
             else:
                 full_idx = 0
-            prev_part = s.part
+            prev_part = ph.part
             last: Chord | None = None
-            for bar in s.bars:
+            for bar in ph.bars:
                 if bar.beats < BEATS_PER_BAR and last is not None:
                     by_bar[bar.beat] = last
                     continue
@@ -382,7 +396,7 @@ class Composer:
 
     def _motif(self, ly: Layer, ph: Phrase) -> tuple:
         dense = ph.energy >= 0.72
-        key = (ly.name, ph.section.part, dense)
+        key = (ly.name, ph.part, dense)
         if key not in self.motifs:
             pool = self.style.melody_rhythms.get("dense" if dense else "sparse") or ["x-------x-------x-------x-------"]
             rhythm = pool[int(self.rng.integers(len(pool)))]

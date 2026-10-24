@@ -60,3 +60,20 @@ def test_transitions_are_marked_and_ending_resolves():
     final = score.chords[-1][2]
     assert final.root == score.key.tonic
     assert score.final_beat == score.chords[-1][0]
+
+
+@pytest.mark.parametrize("style, key", [("lofi", "A lydian"), ("corporate", "D dorian"), ("ambient", "E mixolydian")])
+def test_unsupported_mode_falls_back_to_diatonic_harmony(style, key):
+    score = compose(parse_spec({"duration": 40, "style": style, "key": key}))
+    assert score.key.mode in ("major", "minor")
+    assert any("no " in w and "progressions" in w for w in score.warnings)
+    allowed = set(score.key.scale)
+    if score.key.mode == "minor":
+        allowed.add((score.key.tonic + 11) % 12)  # harmonic-minor leading tone in V
+    for _beat, _n, chord in score.chords:
+        assert set(chord.pcs) <= allowed, chord.symbol
+
+
+def test_long_single_scene_alternates_verse_and_chorus():
+    score = compose(parse_spec({"duration": 150, "style": "electronic", "seed": 1}))
+    assert {p.part for p in score.phrases} == {"A", "B"}
