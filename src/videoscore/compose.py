@@ -211,8 +211,10 @@ class Composer:
         total = grid.end
         for s in self.score.sections:
             bars = s.bars
-            if self.spec.ending == "resolve" and s is self.score.sections[-1] and len(bars) > 1:
-                bars = bars[:-1]  # the final bar is the ring-out, handled separately
+            if self.spec.ending == "resolve" and s is self.score.sections[-1]:
+                bars = bars[:-1]  # the final bar is the ring-out, handled by write_ending
+                if not bars:
+                    continue
             chunks = []
             full = len(bars)
             if full <= 12:
@@ -419,6 +421,7 @@ class Composer:
         units = [bars[i:i + 2] for i in range(0, len(bars), 2)]
         for u, unit in enumerate(units):
             steps_avail = sum(b.beats for b in unit) * STEPS_PER_BEAT
+            first_bar_steps = unit[0].beats * STEPS_PER_BEAT
             mv = moves if u % 2 == 0 else alt
             last_unit = u == len(units) - 1
             written: list[Note] = []
@@ -429,7 +432,8 @@ class Composer:
                 beat = unit[0].beat + step / STEPS_PER_BEAT + self.swing(step)
                 ch = self.chord_at(beat)
                 p = scale_step(prev, m, self.key) if m else prev
-                if step % 8 == 0 or n >= 4:
+                in_bar = step if step < first_bar_steps else step - first_bar_steps
+                if in_bar % 8 == 0 or n >= 4:  # beats 1 and 3 of the bar, or a held note
                     p = nearest_pitch(min(ch.triad_pcs, key=lambda pc: abs(nearest_pitch(pc, p) - p)), p)
                 while p > hi:
                     p -= 12

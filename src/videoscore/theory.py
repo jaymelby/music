@@ -42,12 +42,14 @@ class Key:
 
 
 def parse_key(text: str) -> Key:
-    m = re.fullmatch(r"\s*([A-Ga-g])([#b]?)\s*(major|minor|maj|min|m|dorian|lydian|mixolydian)?\s*", text)
-    if not m:
+    m = re.fullmatch(r"\s*([A-Ga-g])([#b]?)\s*([A-Za-z]*)\s*", text)
+    raw = m.group(3) if m else ""
+    # "m" is minor and "M" is major; otherwise mode names are case-insensitive
+    mode = {"": "major", "M": "major", "m": "minor"}.get(raw, raw.lower())
+    mode = {"maj": "major", "min": "minor"}.get(mode, mode)
+    if not m or mode not in MODES:
         raise ValueError(f"Can't parse key '{text}'. Use e.g. 'D major', 'F# minor', 'A dorian'.")
     name = (m.group(1) + m.group(2)).upper()
-    mode = m.group(3) or "major"
-    mode = {"maj": "major", "min": "minor", "m": "minor"}.get(mode, mode)
     return Key(tonic=_PC[name], mode=mode)
 
 

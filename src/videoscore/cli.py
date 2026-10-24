@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -38,18 +39,31 @@ def _load(args) -> dict:
             raise SpecError(f"Cue sheet not found: {path}") from None
         except json.JSONDecodeError as exc:
             raise SpecError(f"{path} is not valid JSON: {exc}") from None
-        if isinstance(data, dict) and isinstance(data.get("voiceover"), str) and not Path(data["voiceover"]).is_absolute():
+        vo = data.get("voiceover") if isinstance(data, dict) else None
+        if isinstance(vo, str) and vo.strip() and not Path(vo).is_absolute():
             data["voiceover"] = str((path.parent / data["voiceover"]).resolve())
     overrides = {
         "duration": args.duration, "style": args.style, "seed": args.seed, "loudness": args.loudness,
         "ending": args.ending, "key": args.key, "tempo": args.tempo, "voiceover": args.voiceover,
     }
+    # command-line times are always seconds; a cue sheet in frames gets them converted
+    per_second = 1.0
+    if data.get("unit") == "frames" and isinstance(data.get("fps"), (int, float)) and data["fps"] > 0:
+        per_second = float(data["fps"])
+    if args.duration is not None:
+        overrides["duration"] = args.duration * per_second
     for k, v in overrides.items():
         if v is not None:
             data[k] = v
     if args.transitions is not None:
-        data.pop("scenes", None)
-        data["transitions"] = [float(t) for t in args.transitions.split(",") if t.strip()]
+        scenes = data.pop("scenes", None)
+        if "duration" not in data and isinstance(scenes, list) and scenes and all(
+                isinstance(s, dict) and isinstance(s.get("duration"), (int, float)) for s in scenes):
+            data["duration"] = sum(s["duration"] for s in scenes)  # keep the length the scenes implied
+        try:
+            data["transitions"] = [float(t) * per_second for t in args.transitions.split(",") if t.strip()]
+        except ValueError:
+            raise SpecError("--transitions must be comma-separated numbers of seconds, e.g. 4.5,15.2") from None
     if not data:
         raise SpecError("Give a cue sheet JSON file, or at least --duration.")
     return data
@@ -143,6 +157,10 @@ def _main(argv: list[str] | None) -> int:
     except SpecError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or b"").decode(errors="replace").strip().splitlines()
+        print(f"error: ffmpeg failed: {detail[-1] if detail else exc}", file=sys.stderr)
+        return 1
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

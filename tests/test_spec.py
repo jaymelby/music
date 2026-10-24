@@ -47,3 +47,35 @@ def test_missing_first_scene_is_added():
 def test_helpful_errors(data, message):
     with pytest.raises(SpecError, match=message):
         parse_spec(data)
+
+
+@pytest.mark.parametrize("data, message", [
+    ({"duration": 30, "seed": -1}, "non-negative"),
+    ({"duration": 30, "hits": 24}, "must be a list"),
+    ({"duration": 30, "duck": 5}, "must be a list"),
+    ({"duration": 30, "voiceover": ""}, "path to an audio file"),
+    ({"duration": 30, "loudness": -8}, "between -40 and -12"),
+    ({"duration": float("nan")}, "finite"),
+    ({"duration": 30, "transitions": [float("nan")]}, "finite"),
+])
+def test_bad_values_are_spec_errors(data, message):
+    with pytest.raises(SpecError, match=message):
+        parse_spec(data)
+
+
+def test_duck_regions_outside_the_video_are_ignored():
+    spec = parse_spec({"duration": 30, "duck": [[-5, -1], [40, 50], [28, 35]]})
+    assert spec.duck == [(28, 30)]
+    assert sum("outside the video" in w for w in spec.warnings) == 2
+
+
+def test_hit_at_zero_is_accepted():
+    assert parse_spec({"duration": 30, "hits": [0, 12]}).hits == [12]
+
+
+@pytest.mark.parametrize("text, name", [("A Minor", "A minor"), ("C Major", "C major"), ("Am", "A minor"),
+                                        ("AM", "A major"), ("Bb", "Bb major"), ("f# DORIAN", "F# dorian")])
+def test_key_names(text, name):
+    from videoscore.theory import parse_key
+
+    assert parse_key(text).name == name

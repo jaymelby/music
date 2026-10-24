@@ -67,7 +67,7 @@ Read them from the code that builds the video. Don't guess from memory.
 
 Other keys:
 - `"ending"`: `"resolve"` (default) lands on a final chord that rings out; `"fade"` fades out.
-- `"loudness"`: integrated LUFS (default `-18`). Use `-14` for music-only social videos and
+- `"loudness"`: integrated LUFS (default `-18`). Use `-14` for music-only social videos (the loudest allowed is `-12`), and
   about `-22` under narration if you don't use ducking.
 - `"voiceover": "narration.wav"`: the music ducks automatically while the voice is speaking.
   You can also give explicit `"duck": [[start, end], ...]` regions, with `"duck_db"`

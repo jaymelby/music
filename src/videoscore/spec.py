@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -78,9 +79,16 @@ def _check_keys(obj: dict, allowed: set[str], where: str) -> None:
 
 
 def _num(value: Any, name: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise SpecError(f"'{name}' must be a number, got {value!r}.")
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise SpecError(f"'{name}' must be a finite number, got {value!r}.")
     return float(value)
+
+
+def _list(data: dict, key: str) -> list:
+    value = data.get(key, [])
+    if not isinstance(value, list):
+        raise SpecError(f"'{key}' must be a list.")
+    return value
 
 
 def parse_energy(value: Any, where: str) -> float | None:
@@ -178,13 +186,14 @@ def parse_spec(data: dict) -> Spec:
         scenes.insert(0, Scene(start=0.0, energy=scenes[0].energy, label="opening"))
 
     hits = []
-    for i, h in enumerate(data.get("hits", [])):
+    for i, h in enumerate(_list(data, "hits")):
         if isinstance(h, dict):
             h = h.get("time", h.get("start"))
         t = _num(h, f"hits[{i}]") * scale
-        if not 0 < t < duration:
+        if not 0 <= t < duration:
             raise SpecError(f"hits[{i}] at {t:g}s is outside the video.")
-        hits.append(t)
+        if t > 0:  # a hit at 0 is already the first downbeat
+            hits.append(t)
 
     style = str(data.get("style", "corporate")).strip().lower()
     from .styles import STYLES  # local import keeps spec importable on its own
@@ -195,8 +204,8 @@ def parse_spec(data: dict) -> Spec:
         raise SpecError(f"Unknown style '{style}'.{extra} Available: {', '.join(STYLES)}.")
 
     seed = data.get("seed", 1)
-    if isinstance(seed, bool) or not isinstance(seed, int):
-        raise SpecError("'seed' must be an integer.")
+    if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed < 2**31:
+        raise SpecError("'seed' must be a non-negative integer.")
 
     tempo = data.get("tempo")
     if tempo is not None:
@@ -219,11 +228,12 @@ def parse_spec(data: dict) -> Spec:
         raise SpecError(f"'ending' must be one of {ENDINGS}.")
 
     loudness = _num(data.get("loudness", -18.0), "loudness")
-    if not -40 <= loudness <= -8:
-        raise SpecError("'loudness' (integrated LUFS) must be between -40 and -8.")
+    if not -40 <= loudness <= -12:
+        # louder than -12 LUFS can't be reached without audible limiting (the ceiling is -1 dBTP)
+        raise SpecError("'loudness' (integrated LUFS) must be between -40 and -12.")
 
     duck = []
-    for i, region in enumerate(data.get("duck", [])):
+    for i, region in enumerate(_list(data, "duck")):
         if isinstance(region, dict):
             region = [region.get("start"), region.get("end")]
         if not isinstance(region, (list, tuple)) or len(region) != 2:
@@ -231,6 +241,9 @@ def parse_spec(data: dict) -> Spec:
         a, b = _num(region[0], f"duck[{i}][0]") * scale, _num(region[1], f"duck[{i}][1]") * scale
         if b <= a:
             raise SpecError(f"duck[{i}] ends before it starts.")
+        if b <= 0 or a >= duration:
+            warnings.append(f"duck[{i}] ({a:g}-{b:g}s) is outside the video and was ignored.")
+            continue
         duck.append((max(0.0, a), min(duration, b)))
 
     duck_db = _num(data.get("duck_db", -10.0), "duck_db")
@@ -242,7 +255,7 @@ def parse_spec(data: dict) -> Spec:
         raise SpecError("'sample_rate' must be 44100 or 48000.")
 
     voiceover = data.get("voiceover")
-    if voiceover is not None and not isinstance(voiceover, str):
+    if voiceover is not None and (not isinstance(voiceover, str) or not voiceover.strip()):
         raise SpecError("'voiceover' must be a path to an audio file.")
 
     return Spec(

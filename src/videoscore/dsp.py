@@ -205,7 +205,8 @@ def region_gain(n: int, sr: int, regions: list[tuple[float, float]], gain_db: fl
     target = np.zeros(n, dtype=np.float32)
     for a, b in regions:
         i, j = max(0, int((a - attack) * sr)), min(n, int((b + 0.1) * sr))
-        target[i:j] = 1.0
+        if j > i:
+            target[i:j] = 1.0
     smooth = uniform_filter1d(target, size=max(1, int(release * sr)), mode="nearest")
     smooth = np.maximum(smooth, uniform_filter1d(target, size=max(1, int(attack * sr)), mode="nearest"))
     smooth = np.clip(smooth * 1.5, 0, 1)

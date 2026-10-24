@@ -100,6 +100,7 @@ def _render_layers(score: Score, spec: Spec, master, reverb_bus, delay_bus, kick
         human = st.humanize_ms / 1000 * (0.5 if layer.role == "bass" else 1.0)
         decaying = layer.instrument in DECAYING
         release = DECAYING.get(layer.instrument)
+        params = tuple(sorted(layer.params.items()))  # layers sharing an instrument can differ
         for note in notes:
             t0 = grid.time_of(note.beat)
             t1 = grid.time_of(note.beat + note.length)
@@ -109,11 +110,11 @@ def _render_layers(score: Score, spec: Spec, master, reverb_bus, delay_bus, kick
             vel = round(note.vel * 20) / 20  # 0.05 steps: inaudible, and lets notes be cached
             freq = midi_to_hz(note.pitch)
             if decaying:
-                full = cache.get((layer.instrument, note.pitch, vel), lambda: fn(freq, vel, lsr, **layer.params))
+                full = cache.get((layer.instrument, params, note.pitch, vel), lambda: fn(freq, vel, lsr, **layer.params))
                 buf = full if release is None else _damp(full, int(dur * lsr), int(release * lsr))
             else:
                 dur = round(dur / 0.02) * 0.02
-                buf = cache.get((layer.instrument, note.pitch, dur, vel), lambda: fn(freq, dur, vel, lsr, **layer.params))
+                buf = cache.get((layer.instrument, params, note.pitch, dur, vel), lambda: fn(freq, dur, vel, lsr, **layer.params))
             _place(stem, buf, int(round(t0 * lsr)))
         if half:
             stem = dsp.resample(stem, 2, 1)[:, :N]
@@ -135,7 +136,7 @@ def _render_layers(score: Score, spec: Spec, master, reverb_bus, delay_bus, kick
 def _render_drums(score: Score, spec: Spec, master, reverb_bus, rng) -> None:
     sr, st, grid = spec.sample_rate, score.style, score.grid
     N = master.shape[-1]
-    names = {h.instrument for h in score.hits}
+    names = sorted({h.instrument for h in score.hits})  # fixed order: float sums must not depend on hashing
     if not names:
         return
     parts = {p.instrument: p for p in st.drums}

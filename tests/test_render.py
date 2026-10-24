@@ -114,3 +114,32 @@ def test_cli_plan_and_errors(tmp_path, capsys):
     cue.write_text(json.dumps({"duration": 20, "transitons": [5]}))
     assert main(["plan", str(cue)]) == 2
     assert "Did you mean 'transitions'" in capsys.readouterr().err
+
+
+def test_identical_across_processes(tmp_path):
+    """Output must not depend on Python's per-process hash seed."""
+    import os
+    import subprocess
+    import sys
+
+    cue = tmp_path / "cue.json"
+    cue.write_text(json.dumps({"duration": 10, "style": "corporate", "seed": 3, "scenes": [{"start": 0, "energy": 0.8}]}))
+    digests = set()
+    for hs in ("1", "2"):
+        out = tmp_path / f"m{hs}.wav"
+        env = {**os.environ, "PYTHONHASHSEED": hs}
+        subprocess.run([sys.executable, "-m", "videoscore", "render", str(cue), "-o", str(out)], check=True, env=env,
+                       capture_output=True)
+        digests.add(hashlib.sha256(out.read_bytes()).hexdigest())
+    assert len(digests) == 1
+
+
+def test_cli_overrides_are_seconds_even_for_frame_cue_sheets(tmp_path, capsys):
+    cue = tmp_path / "cue.json"
+    cue.write_text(json.dumps({"unit": "frames", "fps": 30, "scenes": [{"duration": 300}, {"duration": 600}]}))
+    assert main(["plan", str(cue), "--transitions", "5,15"]) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["duration"] == 30
+    assert [c["time"] for c in plan["cues"]] == [5, 15]
+    assert main(["plan", str(cue), "--duration", "40"]) == 0
+    assert json.loads(capsys.readouterr().out)["duration"] == 40

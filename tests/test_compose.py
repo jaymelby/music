@@ -77,3 +77,32 @@ def test_unsupported_mode_falls_back_to_diatonic_harmony(style, key):
 def test_long_single_scene_alternates_verse_and_chorus():
     score = compose(parse_spec({"duration": 150, "style": "electronic", "seed": 1}))
     assert {p.part for p in score.phrases} == {"A", "B"}
+
+
+def test_one_bar_end_card_is_not_doubled():
+    score = compose(parse_spec({"duration": 30, "transitions": [27.6]}))
+    fb = score.final_beat
+    final = [n for n in score.notes if n.beat >= fb]
+    assert len(final) == len({(n.layer, n.pitch) for n in final})  # one ring-out chord, no repeats
+    assert all(h.beat == fb for h in score.hits if h.beat >= fb)  # only the final hit, no pattern
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_melody_snaps_after_short_bars(seed):
+    """Short (3-beat) bars must not shift which melody notes count as strong beats."""
+    import random
+
+    rng = random.Random(seed)
+    hits = sorted(round(rng.uniform(8, 32), 2) for _ in range(4))
+    score = compose(parse_spec({"duration": 40, "style": "lofi", "seed": 21, "hits": hits,
+                                "scenes": [{"start": 0, "energy": 0.8}]}))
+    melodic = {ly.name for ly in score.style.layers if ly.role == "melody"}
+    bars = score.grid.bars()
+    for n in score.notes:
+        if n.layer not in melodic:
+            continue
+        bar = next(b for b in bars if b.beat <= n.beat < b.beat + b.beats)
+        pos = n.beat - bar.beat
+        if abs(pos - round(pos)) < 1e-6 and round(pos) % 2 == 0:
+            chord = next(c for b, nb, c in score.chords if b <= n.beat < b + nb)
+            assert n.pitch % 12 in chord.pcs, (n.beat, n.pitch, chord.symbol)

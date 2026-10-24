@@ -93,7 +93,7 @@ report["downbeats"]   # times you can snap animations to
 | `seed` | Picks key, progression and motifs. Change it for a different piece. |
 | `key`, `tempo` | Optional overrides, e.g. `"A minor"`, `96`. |
 | `ending` | `resolve` (final chord on the last downbeat, rings out) or `fade`. |
-| `loudness` | Integrated LUFS target (default -18). |
+| `loudness` | Integrated LUFS target (default -18, range -40 to -12). |
 | `voiceover` | Path to narration audio. The music ducks while it speaks. |
 | `duck`, `duck_db` | Explicit `[[start, end], ...]` ducking regions and depth (default -10 dB). |
 | `unit`, `fps` | `"unit": "frames"` with `fps` lets every time be given in frames (Remotion). |
